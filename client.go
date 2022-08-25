@@ -159,7 +159,9 @@ func (c Client) SetModelState(name string, state interface{}) error {
 	//    $data = "{\"State\": ". $state . "}";
 
 	var resp Status
-	c.httpPut(path, state, &resp)
+	c.httpPut(path, struct {
+		State interface{}
+	}{State: state}, &resp)
 
 	if !strings.EqualFold(resp.Status, "OK") {
 		return fmt.Errorf("unable to clear model %q: %s", name, resp.Message)
