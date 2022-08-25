@@ -50,24 +50,12 @@ func (c Client) formatURL(path string) string {
 func (c Client) httpGet(path string, v interface{}) error {
 	u := c.formatURL(path)
 
-	resp, err := c.httpClient.Get(u)
+	req, err := http.NewRequest(http.MethodGet, u, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("unable to create request: %w", err)
 	}
 
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		// Help the server out by reading and discarding the body
-		io.Copy(io.Discard, resp.Body)
-		return fmt.Errorf("unexpected HTTP status %q (%d)", resp.Status, resp.StatusCode)
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
-		return fmt.Errorf("unable to parse response: %w", err)
-	}
-
-	return nil
+	return c.httpDo(req, v)
 }
 
 func (c Client) httpPut(path string, in, out interface{}) error {
@@ -85,6 +73,10 @@ func (c Client) httpPut(path string, in, out interface{}) error {
 
 	req.Header.Set("Content-Type", "application/json")
 
+	return c.httpDo(req, out)
+}
+
+func (c Client) httpDo(req *http.Request, v interface{}) error {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return err
@@ -94,11 +86,11 @@ func (c Client) httpPut(path string, in, out interface{}) error {
 
 	if resp.StatusCode != http.StatusOK {
 		// Help the server out by reading and discarding the body
-		io.Copy(io.Discard, resp.Body)
+		io.Copy(io.Discard, resp.Body) //nolint:errcheck // don't actually care, we're just trying to be nice.
 		return fmt.Errorf("unexpected HTTP status %q (%d)", resp.Status, resp.StatusCode)
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
+	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
 		return fmt.Errorf("unable to parse response: %w", err)
 	}
 
@@ -156,15 +148,16 @@ func (c Client) GetModelData(name string, rle bool) (*ModelData, error) {
 
 func (c Client) SetModelState(name string, state interface{}) error {
 	path := fmt.Sprintf("/api/overlays/model/%s/state", name)
-	//    $data = "{\"State\": ". $state . "}";
 
 	var resp Status
-	c.httpPut(path, struct {
+	if err := c.httpPut(path, struct {
 		State interface{}
-	}{State: state}, &resp)
+	}{State: state}, &resp); err != nil {
+		return fmt.Errorf("unable to set model state: %q: %w", name, err)
+	}
 
 	if !strings.EqualFold(resp.Status, "OK") {
-		return fmt.Errorf("unable to clear model %q: %s", name, resp.Message)
+		return fmt.Errorf("unable to set model state %q: %s", name, resp.Message)
 	}
 
 	return nil
@@ -194,7 +187,9 @@ func (c Client) FillModel(name string, r, g, b int) error {
 	}
 
 	var resp Status
-	c.httpPut(path, &fillReq, &resp)
+	if err := c.httpPut(path, &fillReq, &resp); err != nil {
+		return fmt.Errorf("unable to fill model %q: %err", name, err)
+	}
 
 	if !strings.EqualFold(resp.Status, "OK") {
 		return fmt.Errorf("unable to fill model %q: %s", name, resp.Message)
@@ -217,7 +212,9 @@ func (c Client) SetModelPixel(name string, x, y, r, g, b int) error {
 	}
 
 	var resp Status
-	c.httpPut(path, &pixelReq, &resp)
+	if err := c.httpPut(path, &pixelReq, &resp); err != nil {
+		return fmt.Errorf("unable to set pixel on model %q: %w", name, err)
+	}
 
 	if !strings.EqualFold(resp.Status, "OK") {
 		return fmt.Errorf("unable to set pixel on model %q: %s", name, resp.Message)

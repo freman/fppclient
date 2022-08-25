@@ -3,6 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/manifoldco/promptui"
@@ -10,7 +13,19 @@ import (
 	"github.com/freman/fppclient"
 )
 
+func init() {
+	// extend the default funcmap to add an add function
+	promptui.FuncMap["add"] = func(a, b int) int {
+		return a + b
+	}
+}
+
+var cleanup []func()
+
 func main() {
+	signalHandler()
+	defer shutdown()
+
 	fppHost := flag.String("host", "10.0.0.249", "FPP host")
 
 	flag.Parse()
@@ -20,77 +35,42 @@ func main() {
 		panic(err)
 	}
 
-	models, err := c.GetModels()
+	model, err := promptForModel(c)
 	if err != nil {
 		panic(err)
 	}
-
-	modelPrompt := promptui.Select{
-		Label: "Test which model?",
-		Items: models,
-		Templates: &promptui.SelectTemplates{
-			Label:    "{{ .Name }}",
-			Inactive: "{{ .Name }}",
-			Selected: fmt.Sprintf(`{{ "%s" | green }} {{ .Name | faint }}`, promptui.IconGood),
-			Active:   fmt.Sprintf("%s {{ .Name | underline }}", promptui.IconSelect),
-			Details: `Channels: {{ .ChannelCount }}
-StartChannel: {{ .StartChannel }}
-Width: {{ .Width }}
-Height: {{ .Height }}`,
-		},
-	}
-
-	idx, _, err := modelPrompt.Run()
-	if err != nil {
-		panic(err)
-	}
-
-	model := models[idx]
-	nodes := model.ChannelCount / model.ChannelCountPerNode
-	_ = nodes
 
 	outputs, err := c.GetChannelOutputs()
 	if err != nil {
 		panic(err)
 	}
 
-	var outputPanel fppclient.ChannelOutput
-	for _, output := range outputs {
-		if output.StartChannel == model.StartChannel && output.ChannelCount == model.ChannelCount {
-			outputPanel = output
-			break
-		}
-	}
-
-	if outputPanel.StartChannel == 0 {
-		panic("panel config not found")
-	}
-
-	fmt.Println("found", outputPanel.Type, "with", len(outputPanel.Panels), "panels")
-
-	panelPrompt := promptui.Select{
-		Label: "Test which panel?",
-		Items: outputPanel.Panels,
-		Templates: &promptui.SelectTemplates{
-			Label:    "{{ .OutputNumber }}-{{ .PanelNumber }}",
-			Inactive: "{{ .OutputNumber }}-{{ .PanelNumber }}",
-			Selected: fmt.Sprintf(`{{ "%s" | green }} {{ .OutputNumber | faint }}{{ "-" | faint }}{{ .PanelNumber | faint }}`, promptui.IconGood),
-			Active:   fmt.Sprintf(`%s {{  .OutputNumber | underline }}{{ "-" | underline }}{{ .PanelNumber | underline }}`, promptui.IconSelect),
-		},
-	}
-
-	idx, _, err = panelPrompt.Run()
+	outputPanel, err := filterOutputsByModel(model, outputs)
 	if err != nil {
 		panic(err)
 	}
 
-	panel := outputPanel.Panels[idx]
-	startX := panel.XOffset
-	startY := panel.YOffset
-	endX := outputPanel.PanelWidth
-	endY := outputPanel.PanelHeight
+	fmt.Println("found", outputPanel.Type, "with", len(outputPanel.Panels), "panels")
 
-	c.SetModelState(model.Name, 1)
+	panel, err := promptForPanel(outputPanel.Panels)
+	if err != nil {
+		panic(err)
+	}
+
+	if err := c.SetModelState(model.Name, 1); err != nil {
+		panic(err)
+	}
+
+	cleanup = append(cleanup, func() {
+		if err := c.ClearModel(model.Name); err != nil {
+			fmt.Println("Warning, failed to clear model:", err.Error())
+		}
+
+		if err := c.SetModelState(model.Name, 0); err != nil {
+			fmt.Println("Warning, failed to turn off the panel:", err.Error())
+
+		}
+	})
 
 	sequences := map[string][]int{
 		"red":    {100, 0, 0},
@@ -104,13 +84,88 @@ Height: {{ .Height }}`,
 
 	for name, color := range sequences {
 		fmt.Println("All", name)
-		for x := startX; x < endX; x++ {
-			for y := startY; y < endY; y++ {
-				c.SetModelPixel(model.Name, x, y, color[0], color[1], color[2])
+		for x, xend := panel.XOffset, panel.XOffset+outputPanel.PanelWidth; x < xend; x++ {
+			for y, yend := panel.YOffset, panel.YOffset+outputPanel.PanelHeight; y < yend; y++ {
+				if err := c.SetModelPixel(model.Name, x, y, color[0], color[1], color[2]); err != nil {
+					fmt.Printf("Warning, failed to configure pixel %d,%d: %v", x, y, err)
+				}
 			}
 		}
 		time.Sleep(10 * time.Second)
 	}
+}
 
-	c.SetModelState(model.Name, 0)
+func promptForModel(c *fppclient.Client) (model fppclient.Model, err error) {
+	models, err := c.GetModels()
+	if err != nil {
+		return model, err
+	}
+
+	idx, _, err := (&promptui.Select{
+		Label: "Test which model?",
+		Items: models,
+		Templates: &promptui.SelectTemplates{
+			Label:    "{{ .Name }}",
+			Inactive: "{{ .Name }}",
+			Selected: fmt.Sprintf(`{{ "%s" | green }} {{ .Name | faint }}`, promptui.IconGood),
+			Active:   fmt.Sprintf("%s {{ .Name | underline }}", promptui.IconSelect),
+			Details: `Channels: {{ .ChannelCount }}
+StartChannel: {{ .StartChannel }}
+Width: {{ .Width }}
+Height: {{ .Height }}`,
+		},
+	}).Run()
+
+	if err != nil {
+		return model, err
+	}
+
+	return models[idx], nil
+}
+
+func filterOutputsByModel(model fppclient.Model, outputs fppclient.ChannelOutputs) (output fppclient.ChannelOutput, err error) {
+	for _, o := range outputs {
+		if o.StartChannel == model.StartChannel && o.ChannelCount == model.ChannelCount {
+			return o, nil
+		}
+	}
+
+	return output, fmt.Errorf("no matching output for model %s", model.Name)
+}
+
+func promptForPanel(panels fppclient.ChannelOutputPanels) (panel fppclient.ChannelOutputPanel, err error) {
+	idx, _, err := (&promptui.Select{
+		Label: "Test which panel?",
+		Items: panels,
+		Templates: &promptui.SelectTemplates{
+			Label:    "{{ add 1 .OutputNumber }}-{{ add 1 .PanelNumber }}",
+			Inactive: "{{ add 1 .OutputNumber }}-{{ add 1 .PanelNumber }}",
+			Selected: fmt.Sprintf(`{{ "%s" | green }} {{ add 1 .OutputNumber | faint }}{{ "-" | faint }}{{ add 1 .PanelNumber | faint }}`, promptui.IconGood),
+			Active:   fmt.Sprintf(`%s {{  add 1 .OutputNumber | underline }}{{ "-" | underline }}{{ add 1 .PanelNumber | underline }}`, promptui.IconSelect),
+		},
+	}).Run()
+
+	if err != nil {
+		return panel, err
+	}
+
+	return panels[idx], nil
+}
+
+func shutdown() {
+	fmt.Println("Shutting down.")
+	for _, fn := range cleanup {
+		fn()
+	}
+}
+
+func signalHandler() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-c
+		fmt.Println("^C intercepted.")
+		shutdown()
+		os.Exit(1)
+	}()
 }
