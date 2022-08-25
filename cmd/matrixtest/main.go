@@ -66,6 +66,9 @@ func main() {
 			fmt.Println("Warning, failed to clear model:", err.Error())
 		}
 
+		// if you shut it down while it's clearing it leaves lit pixels
+		time.Sleep(500 * time.Millisecond)
+
 		if err := c.SetModelState(model.Name, 0); err != nil {
 			fmt.Println("Warning, failed to turn off the panel:", err.Error())
 
