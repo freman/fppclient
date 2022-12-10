@@ -130,3 +130,66 @@ type Schedule struct {
 		StartTimeStr     string   `json:"startTimeStr"`
 	} `json:"items"`
 }
+
+type FPPDStatus struct {
+	MQTT struct {
+		Configured bool `json:"configured"`
+		Connected  bool `json:"connected"`
+	} `json:"MQTT"`
+	Bridging        bool `json:"bridging"`
+	CurrentPlaylist struct {
+		Count       string `json:"count"`
+		Description string `json:"description"`
+		Index       string `json:"index"`
+		Playlist    string `json:"playlist"`
+		Type        string `json:"type"`
+	} `json:"current_playlist"`
+	CurrentSequence string `json:"current_sequence"`
+	CurrentSong     string `json:"current_song"`
+	DateStr         string `json:"dateStr"`
+	Fppd            string `json:"fppd"`
+	Mode            int    `json:"mode"`
+	ModeName        string `json:"mode_name"`
+	Multisync       bool   `json:"multisync"`
+	NextPlaylist    struct {
+		Playlist  string `json:"playlist"`
+		StartTime string `json:"start_time"`
+	} `json:"next_playlist"`
+	RepeatMode string `json:"repeat_mode"`
+	Scheduler  struct {
+		Enabled      int `json:"enabled"`
+		NextPlaylist struct {
+			PlaylistName          string `json:"playlistName"`
+			ScheduledStartTime    int    `json:"scheduledStartTime"`
+			ScheduledStartTimeStr string `json:"scheduledStartTimeStr"`
+		} `json:"nextPlaylist"`
+		Status string `json:"status"`
+	} `json:"scheduler"`
+	SecondsPlayed    string `json:"seconds_played"`
+	SecondsRemaining string `json:"seconds_remaining"`
+	Sensors          []struct {
+		Formatted string  `json:"formatted"`
+		Label     string  `json:"label"`
+		Postfix   string  `json:"postfix"`
+		Prefix    string  `json:"prefix"`
+		Value     float64 `json:"value"`
+		ValueType string  `json:"valueType"`
+	} `json:"sensors"`
+	Status             int      `json:"status"`
+	StatusName         string   `json:"status_name"`
+	Time               string   `json:"time"`
+	TimeStr            string   `json:"timeStr"`
+	TimeStrFull        string   `json:"timeStrFull"`
+	TimeElapsed        string   `json:"time_elapsed"`
+	TimeRemaining      string   `json:"time_remaining"`
+	Uptime             string   `json:"uptime"`
+	UptimeDays         float64  `json:"uptimeDays"`
+	UptimeHours        float64  `json:"uptimeHours"`
+	UptimeMinutes      float64  `json:"uptimeMinutes"`
+	UptimeSeconds      int      `json:"uptimeSeconds"`
+	UptimeStr          string   `json:"uptimeStr"`
+	UptimeTotalSeconds int      `json:"uptimeTotalSeconds"`
+	UUID               string   `json:"uuid"`
+	Volume             int      `json:"volume"`
+	Warnings           []string `json:"warnings"`
+}
