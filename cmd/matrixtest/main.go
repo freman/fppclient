@@ -81,21 +81,42 @@ func main() {
 		"blue":   {0, 0, 100},
 		"yellow": {80, 80, 0},
 		"purple": {80, 0, 80},
-		"cyan":   {0, 80, 0},
+		"cyan":   {0, 80, 80},
 		"white":  {60, 60, 60},
+	}
+
+	type work struct {
+		x, y  int
+		color []int
+	}
+
+	chwork := make(chan work, 30)
+
+	for i := 0; i < 9; i++ {
+		go func() {
+			for job := range chwork {
+				if err := c.SetModelPixel(model.Name, job.x, job.y, job.color[0], job.color[1], job.color[2]); err != nil {
+					fmt.Printf("Warning, failed to configure pixel %d,%d: %v", job.x, job.y, err)
+				}
+			}
+		}()
 	}
 
 	for name, color := range sequences {
 		fmt.Println("All", name)
 		for x, xend := panel.XOffset, panel.XOffset+outputPanel.PanelWidth; x < xend; x++ {
 			for y, yend := panel.YOffset, panel.YOffset+outputPanel.PanelHeight; y < yend; y++ {
-				if err := c.SetModelPixel(model.Name, x, y, color[0], color[1], color[2]); err != nil {
-					fmt.Printf("Warning, failed to configure pixel %d,%d: %v", x, y, err)
+				chwork <- work{
+					x:     x,
+					y:     y,
+					color: color,
 				}
 			}
 		}
 		time.Sleep(10 * time.Second)
 	}
+
+	close(chwork)
 }
 
 func promptForModel(c *fppclient.Client) (model fppclient.Model, err error) {

@@ -88,3 +88,45 @@ type ChannelOutputPanel struct {
 	Row          int    `json:"row"`
 	Col          int    `json:"col"`
 }
+
+type ScheduleResponse struct {
+	Status
+	RespCode int      `json:"respCode"`
+	Schedule Schedule `json:"schedule"`
+}
+
+type Schedule struct {
+	Enabled int `json:"enabled"`
+	Entries []struct {
+		Args             []string `json:"args,omitempty"`
+		Command          string   `json:"command,omitempty"`
+		Day              int      `json:"day"`
+		DayStr           string   `json:"dayStr"`
+		Enabled          int      `json:"enabled"`
+		EndDate          string   `json:"endDate"`
+		EndTime          string   `json:"endTime"`
+		ID               int      `json:"id"`
+		MultisyncCommand bool     `json:"multisyncCommand,omitempty"`
+		MultisyncHosts   string   `json:"multisyncHosts,omitempty"`
+		Playlist         string   `json:"playlist"`
+		Repeat           int      `json:"repeat"`
+		RepeatInterval   int      `json:"repeatInterval"`
+		StartDate        string   `json:"startDate"`
+		StartTime        string   `json:"startTime"`
+		StopType         int      `json:"stopType"`
+		StopTypeStr      string   `json:"stopTypeStr"`
+		Type             string   `json:"type"`
+	} `json:"entries"`
+	Items []struct {
+		Args             []string `json:"args"`
+		Command          string   `json:"command"`
+		EndTime          int      `json:"endTime"`
+		EndTimeStr       string   `json:"endTimeStr"`
+		ID               int      `json:"id"`
+		MultisyncCommand bool     `json:"multisyncCommand"`
+		MultisyncHosts   string   `json:"multisyncHosts"`
+		Priority         int      `json:"priority"`
+		StartTime        int      `json:"startTime"`
+		StartTimeStr     string   `json:"startTimeStr"`
+	} `json:"items"`
+}
