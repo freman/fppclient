@@ -1,13 +1,9 @@
 package fppclient
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 )
 
@@ -40,129 +36,6 @@ func New(baseURL string, args ...newArg) (*Client, error) {
 	return &c, nil
 }
 
-func (c Client) formatURL(path string) string {
-	return c.baseURL.ResolveReference(
-		&url.URL{
-			Path: path,
-		}).String()
-}
-
-func (c Client) httpGet(path string, v interface{}) error {
-	u := c.formatURL(path)
-
-	req, err := http.NewRequest(http.MethodGet, u, nil)
-	if err != nil {
-		return fmt.Errorf("unable to create request: %w", err)
-	}
-
-	return c.httpDo(req, v)
-}
-
-func (c Client) httpPut(path string, in, out interface{}) error {
-	u := c.formatURL(path)
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(in); err != nil {
-		return fmt.Errorf("unable to marshal object: %w", err)
-	}
-
-	req, err := http.NewRequest(http.MethodPut, u, &buf)
-	if err != nil {
-		return fmt.Errorf("unable to create request: %w", err)
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-
-	return c.httpDo(req, out)
-}
-
-func (c Client) httpDo(req *http.Request, v interface{}) error {
-	resp, err := c.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		// Help the server out by reading and discarding the body
-		io.Copy(io.Discard, resp.Body) //nolint:errcheck // don't actually care, we're just trying to be nice.
-		return fmt.Errorf("unexpected HTTP status %q (%d)", resp.Status, resp.StatusCode)
-	}
-
-	if err := json.NewDecoder(resp.Body).Decode(v); err != nil {
-		return fmt.Errorf("unable to parse response: %w", err)
-	}
-
-	return nil
-}
-
-func (c Client) GetModels() (models Models, err error) {
-	if err = c.httpGet("/api/overlays/models", &models); err != nil {
-		return nil, fmt.Errorf("unable to retrieve models: %w", err)
-	}
-
-	return models, err
-}
-
-func (c Client) GetModel(name string) (*Model, error) {
-	var model Model
-
-	path := fmt.Sprintf("/api/overlays/model/%s", name)
-	if err := c.httpGet(path, &model); err != nil {
-		return nil, fmt.Errorf("unable to retrieve model %q: %w", name, err)
-	}
-
-	return &model, nil
-}
-
-func (c Client) ClearModel(name string) error {
-	var resp Status
-
-	path := fmt.Sprintf("/api/overlays/model/%s/clear", name)
-	if err := c.httpGet(path, &resp); err != nil {
-		return fmt.Errorf("unable to clear model %q: %w", name, err)
-	}
-
-	if !strings.EqualFold(resp.Status, "OK") {
-		return fmt.Errorf("unable to clear model %q: %s", name, resp.Message)
-	}
-
-	return nil
-}
-
-func (c Client) GetModelData(name string, rle bool) (*ModelData, error) {
-	var modelData ModelData
-
-	path := fmt.Sprintf("/api/overlays/model/%s/data", name)
-	if rle {
-		path += "/rle"
-	}
-
-	if err := c.httpGet(path, &modelData); err != nil {
-		return nil, fmt.Errorf("unable to retrieve model %q: %w", name, err)
-	}
-
-	return &modelData, nil
-}
-
-func (c Client) SetModelState(name string, state interface{}) error {
-	path := fmt.Sprintf("/api/overlays/model/%s/state", name)
-
-	var resp Status
-	if err := c.httpPut(path, struct {
-		State interface{}
-	}{State: state}, &resp); err != nil {
-		return fmt.Errorf("unable to set model state: %q: %w", name, err)
-	}
-
-	if !strings.EqualFold(resp.Status, "OK") {
-		return fmt.Errorf("unable to set model state %q: %s", name, resp.Message)
-	}
-
-	return nil
-}
-
 func constrainToByte(i int) int {
 	if i > 255 {
 		return 255
@@ -173,62 +46,6 @@ func constrainToByte(i int) int {
 	}
 
 	return i
-}
-
-func (c Client) FillModel(name string, r, g, b int) error {
-	path := fmt.Sprintf("/api/overlays/model/%s/fill", name)
-
-	fillReq := fillPixelRequest{
-		RGB: []int{
-			constrainToByte(r),
-			constrainToByte(g),
-			constrainToByte(b),
-		},
-	}
-
-	var resp Status
-	if err := c.httpPut(path, &fillReq, &resp); err != nil {
-		return fmt.Errorf("unable to fill model %q: %err", name, err)
-	}
-
-	if !strings.EqualFold(resp.Status, "OK") {
-		return fmt.Errorf("unable to fill model %q: %s", name, resp.Message)
-	}
-
-	return nil
-}
-
-func (c Client) SetModelPixel(name string, x, y, r, g, b int) error {
-	path := fmt.Sprintf("/api/overlays/model/%s/pixel", name)
-
-	pixelReq := fillPixelRequest{
-		X: x,
-		Y: y,
-		RGB: []int{
-			constrainToByte(r),
-			constrainToByte(g),
-			constrainToByte(b),
-		},
-	}
-
-	var resp Status
-	if err := c.httpPut(path, &pixelReq, &resp); err != nil {
-		return fmt.Errorf("unable to set pixel on model %q: %w", name, err)
-	}
-
-	if !strings.EqualFold(resp.Status, "OK") {
-		return fmt.Errorf("unable to set pixel on model %q: %s", name, resp.Message)
-	}
-
-	return nil
-}
-
-func (c Client) GetFonts() (fonts Fonts, err error) {
-	if err = c.httpGet("/api/overlays/fonts", &fonts); err != nil {
-		return nil, fmt.Errorf("unable to retrieve fonts: %w", err)
-	}
-
-	return fonts, err
 }
 
 func (c Client) GetPlugins() (plugins Plugins, err error) {
@@ -254,6 +71,15 @@ func (c Client) GetChannelOutputs() (ChannelOutputs, error) {
 	}
 
 	return resp.ChannelOutputs, nil
+}
+
+func (c Client) GetSchedule() (Schedule, error) {
+	var resp ScheduleResponse
+	if err := c.httpGet("/api/fppd/schedule", &resp); err != nil {
+		return Schedule{}, fmt.Errorf("unable to retrieve schedule: %w", err)
+	}
+
+	return resp.Schedule, nil
 }
 
 type newArg func(c *Client)

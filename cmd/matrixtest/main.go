@@ -57,19 +57,19 @@ func main() {
 		panic(err)
 	}
 
-	if err := c.SetModelState(model.Name, 1); err != nil {
+	if err := c.SetOverlaysModelState(model.Name, 1); err != nil {
 		panic(err)
 	}
 
 	cleanup = append(cleanup, func() {
-		if err := c.ClearModel(model.Name); err != nil {
+		if err := c.ClearOverlaysModel(model.Name); err != nil {
 			fmt.Println("Warning, failed to clear model:", err.Error())
 		}
 
 		// if you shut it down while it's clearing it leaves lit pixels
 		time.Sleep(500 * time.Millisecond)
 
-		if err := c.SetModelState(model.Name, 0); err != nil {
+		if err := c.SetOverlaysModelState(model.Name, 0); err != nil {
 			fmt.Println("Warning, failed to turn off the panel:", err.Error())
 
 		}
@@ -95,7 +95,7 @@ func main() {
 	for i := 0; i < 9; i++ {
 		go func() {
 			for job := range chwork {
-				if err := c.SetModelPixel(model.Name, job.x, job.y, job.color[0], job.color[1], job.color[2]); err != nil {
+				if err := c.SetOverlaysModelPixel(model.Name, job.x, job.y, job.color[0], job.color[1], job.color[2]); err != nil {
 					fmt.Printf("Warning, failed to configure pixel %d,%d: %v", job.x, job.y, err)
 				}
 			}
@@ -120,7 +120,7 @@ func main() {
 }
 
 func promptForModel(c *fppclient.Client) (model fppclient.Model, err error) {
-	models, err := c.GetModels()
+	models, err := c.GetOverlaysModels()
 	if err != nil {
 		return model, err
 	}
