@@ -73,15 +73,6 @@ func (c Client) GetChannelOutputs() (ChannelOutputs, error) {
 	return resp.ChannelOutputs, nil
 }
 
-func (c Client) GetSchedule() (Schedule, error) {
-	var resp ScheduleResponse
-	if err := c.httpGet("/api/fppd/schedule", &resp); err != nil {
-		return Schedule{}, fmt.Errorf("unable to retrieve schedule: %w", err)
-	}
-
-	return resp.Schedule, nil
-}
-
 type newArg func(c *Client)
 
 func WithHTTPClient(httpClient *http.Client) newArg {

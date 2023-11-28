@@ -1,5 +1,67 @@
 package fppclient
 
+import (
+	"bytes"
+	"encoding/json"
+	"strconv"
+	"time"
+)
+
+// A Intish is an int that can be unmarshalled from a JSON field
+// that has either a number or a string value.
+// E.g. if the json field contains an string "42", the
+// FlexInt value will be "42".
+type Intish int
+
+// UnmarshalJSON implements the json.Unmarshaler interface, which
+// allows us to ingest values of any json type as an int and run our custom conversion
+
+func (fi *Intish) UnmarshalJSON(b []byte) error {
+	if b[0] != '"' {
+		return json.Unmarshal(b, (*int)(fi))
+	}
+	var s string
+	if err := json.Unmarshal(b, &s); err != nil {
+		return err
+	}
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		return err
+	}
+	*fi = Intish(i)
+	return nil
+}
+
+type FPPTime struct {
+	time.Time
+}
+
+func (e *FPPTime) UnmarshalJSON(b []byte) error {
+	const scheduledFormat = "Mon Jan 02 @ 15:05 PM"
+
+	if b[0] != '"' {
+		var tmp int64
+		if err := json.Unmarshal(b, &tmp); err != nil {
+			return err
+		}
+
+		e.Time = time.Unix(tmp, 0)
+		return nil
+	}
+
+	if bytes.Contains(b, []byte{'@'}) {
+		t, err := time.Parse(scheduledFormat, string(bytes.Split(b[1:len(b)-1], []byte{' ', '-', ' '})[0]))
+		if err != nil {
+			return err
+		}
+
+		e.Time = t.AddDate(time.Now().Year(), 0, 0)
+		return nil
+	}
+
+	return nil
+}
+
 type Models []Model
 
 type Model struct {
@@ -138,9 +200,9 @@ type FPPDStatus struct {
 	} `json:"MQTT"`
 	Bridging        bool `json:"bridging"`
 	CurrentPlaylist struct {
-		Count       string `json:"count"`
+		Count       Intish `json:"count"`
 		Description string `json:"description"`
-		Index       string `json:"index"`
+		Index       Intish `json:"index"`
 		Playlist    string `json:"playlist"`
 		Type        string `json:"type"`
 	} `json:"current_playlist"`
@@ -148,20 +210,20 @@ type FPPDStatus struct {
 	CurrentSong     string `json:"current_song"`
 	DateStr         string `json:"dateStr"`
 	Fppd            string `json:"fppd"`
-	Mode            int    `json:"mode"`
+	Mode            Intish `json:"mode"`
 	ModeName        string `json:"mode_name"`
 	Multisync       bool   `json:"multisync"`
 	NextPlaylist    struct {
-		Playlist  string `json:"playlist"`
-		StartTime string `json:"start_time"`
+		Playlist  string  `json:"playlist"`
+		StartTime FPPTime `json:"start_time"`
 	} `json:"next_playlist"`
-	RepeatMode string `json:"repeat_mode"`
+	RepeatMode Intish `json:"repeat_mode"`
 	Scheduler  struct {
 		Enabled      int `json:"enabled"`
 		NextPlaylist struct {
-			PlaylistName          string `json:"playlistName"`
-			ScheduledStartTime    int    `json:"scheduledStartTime"`
-			ScheduledStartTimeStr string `json:"scheduledStartTimeStr"`
+			PlaylistName          string  `json:"playlistName"`
+			ScheduledStartTime    FPPTime `json:"scheduledStartTime"`
+			ScheduledStartTimeStr string  `json:"scheduledStartTimeStr"`
 		} `json:"nextPlaylist"`
 		Status string `json:"status"`
 	} `json:"scheduler"`

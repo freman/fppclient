@@ -9,6 +9,11 @@ import (
 	"net/url"
 )
 
+type BodyError struct {
+	body []byte
+	err  error
+}
+
 func (c Client) formatURL(path string) string {
 	return c.baseURL.ResolveReference(
 		&url.URL{
