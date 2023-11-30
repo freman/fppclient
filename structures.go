@@ -37,7 +37,7 @@ type FPPTime struct {
 }
 
 func (e *FPPTime) UnmarshalJSON(b []byte) error {
-	const scheduledFormat = "Mon Jan 02 @ 15:05 PM"
+	const scheduledFormat = "Mon Jan  2 @ 15:05 PM"
 
 	if b[0] != '"' {
 		var tmp int64
