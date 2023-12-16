@@ -3,6 +3,7 @@ package fppclient
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"strconv"
 	"time"
 )
@@ -200,9 +201,9 @@ type FPPDStatus struct {
 	} `json:"MQTT"`
 	Bridging        bool `json:"bridging"`
 	CurrentPlaylist struct {
-		Count       Intish `json:"count"`
+		Count       int    `json:"count,string"`
 		Description string `json:"description"`
-		Index       Intish `json:"index"`
+		Index       int    `json:"index,string"`
 		Playlist    string `json:"playlist"`
 		Type        string `json:"type"`
 	} `json:"current_playlist"`
@@ -217,7 +218,7 @@ type FPPDStatus struct {
 		Playlist  string  `json:"playlist"`
 		StartTime FPPTime `json:"start_time"`
 	} `json:"next_playlist"`
-	RepeatMode Intish `json:"repeat_mode"`
+	RepeatMode RepeatMode `json:"repeat_mode"`
 	Scheduler  struct {
 		Enabled      int `json:"enabled"`
 		NextPlaylist struct {
@@ -254,4 +255,33 @@ type FPPDStatus struct {
 	UUID               string   `json:"uuid"`
 	Volume             int      `json:"volume"`
 	Warnings           []string `json:"warnings"`
+}
+
+type RepeatMode struct {
+	Value int
+}
+
+func (rm *RepeatMode) UnmarshalJSON(data []byte) error {
+	var err error
+
+	// Try to parse the value as an integer
+	rm.Value, err = strconv.Atoi(string(data))
+	if err == nil {
+		return nil
+	}
+
+	// If parsing as an integer fails, try parsing as a string
+	var stringValue string
+	err = json.Unmarshal(data, &stringValue)
+	if err != nil {
+		return fmt.Errorf("failed to unmarshal RepeatMode: %v", err)
+	}
+
+	// Parse the string value as an integer
+	rm.Value, err = strconv.Atoi(stringValue)
+	if err != nil {
+		return fmt.Errorf("failed to parse RepeatMode as integer: %v", err)
+	}
+
+	return nil
 }
