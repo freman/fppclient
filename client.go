@@ -1,6 +1,7 @@
 package fppclient
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -36,37 +37,25 @@ func New(baseURL string, args ...newArg) (*Client, error) {
 	return &c, nil
 }
 
-func constrainToByte(i int) int {
-	if i > 255 {
-		return 255
-	}
-
-	if i < 0 {
-		return 0
-	}
-
-	return i
-}
-
-func (c Client) GetPlugins() (plugins Plugins, err error) {
-	if err = c.httpGet("/api/plugin", &plugins); err != nil {
+func (c Client) GetPlugins(ctx context.Context) (plugins Plugins, err error) {
+	if err = c.httpGet(ctx, "/api/plugin", &plugins); err != nil {
 		return nil, fmt.Errorf("unable to retrieve plugins: %w", err)
 	}
 
 	return plugins, err
 }
 
-func (c Client) GetConfig(name string, v interface{}) error {
-	if err := c.httpGet("/api/configfile/"+name, v); err != nil {
+func (c Client) GetConfig(ctx context.Context, name string, v interface{}) error {
+	if err := c.httpGet(ctx, "/api/configfile/"+name, v); err != nil {
 		return fmt.Errorf("unable to retrieve config file %q: %w", name, err)
 	}
 
 	return nil
 }
 
-func (c Client) GetChannelOutputs() (ChannelOutputs, error) {
+func (c Client) GetChannelOutputs(ctx context.Context) (ChannelOutputs, error) {
 	var resp ChannelOutputsObj
-	if err := c.GetConfig("channeloutputs.json", &resp); err != nil {
+	if err := c.GetConfig(ctx, "channeloutputs.json", &resp); err != nil {
 		return nil, fmt.Errorf("unable to retrieve channel outputs: %w", err)
 	}
 

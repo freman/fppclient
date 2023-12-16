@@ -2,6 +2,7 @@ package fppclient
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -21,10 +22,10 @@ func (c Client) formatURL(path string) string {
 		}).String()
 }
 
-func (c Client) httpGet(path string, v interface{}) error {
+func (c Client) httpGet(ctx context.Context, path string, v interface{}) error {
 	u := c.formatURL(path)
 
-	req, err := http.NewRequest(http.MethodGet, u, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
 	if err != nil {
 		return fmt.Errorf("unable to create request: %w", err)
 	}
@@ -32,7 +33,16 @@ func (c Client) httpGet(path string, v interface{}) error {
 	return c.httpDo(req, v)
 }
 
-func (c Client) httpPut(path string, in, out interface{}) error {
+func (c Client) httpPost(ctx context.Context, path string, in, out interface{}) error {
+	return c.httpDoWithJSON(ctx, http.MethodPost, path, in, out)
+
+}
+
+func (c Client) httpPut(ctx context.Context, path string, in, out interface{}) error {
+	return c.httpDoWithJSON(ctx, http.MethodPut, path, in, out)
+}
+
+func (c Client) httpDoWithJSON(ctx context.Context, method, path string, in, out interface{}) error {
 	u := c.formatURL(path)
 
 	var buf bytes.Buffer
@@ -40,7 +50,7 @@ func (c Client) httpPut(path string, in, out interface{}) error {
 		return fmt.Errorf("unable to marshal object: %w", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPut, u, &buf)
+	req, err := http.NewRequestWithContext(ctx, method, u, &buf)
 	if err != nil {
 		return fmt.Errorf("unable to create request: %w", err)
 	}
